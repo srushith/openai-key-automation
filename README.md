@@ -2,98 +2,112 @@
 
 ## Overview
 
-This project automates OpenAI API key generation for learners using:
+This project automates **bulk OpenAI API key generation** for learners (e.g. students in a cohort) using browser automation. It drives a real, already-logged-in Chrome session through the OpenAI Platform UI, creates one secret key per learner under a specific OpenAI **project**, copies each generated key, and stores the results in a CSV.
 
-* Playwright browser automation
-* Existing logged-in Chrome session
-* CSV-based learner input
-* Automatic API key generation
-* Automatic CSV output storage
+The system uses:
 
-The system creates:
+* **Playwright** for browser automation (via Chrome DevTools Protocol)
+* An **existing logged-in Chrome session** (no re-login or stored credentials)
+* **CSV-based** learner input
+* **Automatic** API key generation, copy, and capture
+* **Automatic** CSV output storage (append mode)
 
-* one API key per learner
-* under a selected OpenAI project
+For each learner it creates:
 
----
-
-# Features
-
-* Bulk API key creation
-* Reads learner names from CSV
-* Automatically creates keys in OpenAI UI
-* Automatically copies generated API keys
-* Saves keys into output CSV
-* Uses existing Chrome login session
-* Supports project-level organization
-* Error-safe loop execution
+* one API key
+* under a single, pre-selected OpenAI project
 
 ---
 
-# Tech Stack
+## Features
 
-| Tool              | Purpose              |
-| ----------------- | -------------------- |
-| Node.js           | Runtime              |
-| Playwright        | Browser automation   |
-| Chrome Debug Mode | Session persistence  |
-| csv-parser        | Read learner CSV     |
-| csv-writer        | Write generated keys |
-| clipboardy        | Read copied API keys |
+* Bulk API key creation in a single run
+* Reads learner names from a CSV file
+* Automatically creates keys through the live OpenAI UI
+* Automatically clicks **Copy** and reads the key from the system clipboard
+* Saves `name, apiKey` pairs into an output CSV (append mode)
+* Reuses an existing Chrome login session — no credentials in code
+* Scoped to a single OpenAI project via a project URL
+* Error-safe loop: a failure on one learner is logged and the run continues
 
 ---
 
-# Folder Structure
+## Tech Stack
+
+| Tool                | Purpose                                  |
+| ------------------- | ---------------------------------------- |
+| Node.js             | Runtime                                  |
+| Playwright          | Browser automation (Chromium over CDP)   |
+| Chrome (debug mode) | Provides the logged-in session           |
+| csv-parser          | Reads the learner input CSV              |
+| csv-writer          | Writes generated keys to the output CSV  |
+| clipboardy          | Reads the copied API key from clipboard  |
+
+Dependencies (from `package.json`):
+
+```json
+{
+  "clipboardy": "^5.3.1",
+  "csv-parser": "^3.2.0",
+  "csv-writer": "^1.6.0",
+  "playwright": "^1.59.1"
+}
+```
+
+> **Note:** `clipboardy` v5 is ESM-only, so it is imported with `require('clipboardy').default`.
+
+---
+
+## Folder Structure
 
 ```bash
 openai-key-automation/
 │
-├── test.js
-├── learners.csv
-├── generated_keys.csv
+├── main.js              # The automation script (entry point you actually run)
+├── createKeys.js        # Currently empty; listed as "main" in package.json (see note below)
+├── learners.csv         # Input — you create this (git-ignored)
+├── generated_keys.csv   # Output — created automatically on first run (git-ignored)
+├── logs/
+│   └── errors.log       # Reserved for error logging
 ├── package.json
+├── package-lock.json
+├── .gitignore
 └── README.md
 ```
 
----
-
-# Prerequisites
-
-Install:
-
-* Node.js
-* Google Chrome
+> **Important:** `package.json` declares `"main": "createKeys.js"`, but that file is currently empty. The working automation lives in **`main.js`**, which is the file you run. `learners.csv`, `generated_keys.csv`, `node_modules/`, and `.env` are all listed in `.gitignore` so secrets are never committed.
 
 ---
 
-# Installation
+## Prerequisites
 
-## 1. Create Project
+Install on your machine:
+
+* **Node.js** (LTS recommended)
+* **Google Chrome**
+
+You also need an OpenAI account with access to the target project and permission to create API keys.
+
+---
+
+## Installation
+
+### 1. Clone or open the project
 
 ```bash
-mkdir openai-key-automation
+git clone https://github.com/srushith/openai-key-automation.git
 cd openai-key-automation
 ```
 
----
-
-## 2. Initialize Node Project
+### 2. Install dependencies
 
 ```bash
-npm init -y
+npm install
 ```
 
----
+This installs the dependencies already listed in `package.json` (Playwright, clipboardy, csv-parser, csv-writer).
 
-## 3. Install Dependencies
-
-```bash
-npm install playwright clipboardy csv-parser csv-writer
-```
-
----
-
-## 4. Install Playwright Browsers
+### 3. Install Playwright browsers
 
 ```bash
 npx playwright install
@@ -101,55 +115,38 @@ npx playwright install
 
 ---
 
-# Chrome Debug Setup
+## Chrome Debug Setup
 
-The automation connects to an already logged-in Chrome session.
+The automation does **not** log in for you. Instead, it connects to a Chrome instance that you have already logged into. This avoids handling OpenAI credentials in code.
 
----
+### Step 1 — Close all Chrome windows
 
-## Step 1 — Close All Chrome Windows
+Close every Chrome window and ensure no `chrome.exe` processes are still running.
 
-Close:
+### Step 2 — Start Chrome in debug mode
 
-* all Chrome windows
-* all chrome.exe processes
-
----
-
-## Step 2 — Start Chrome in Debug Mode
-
-Run this command in CMD:
+Run this in CMD (Windows):
 
 ```bash
 "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\chrome-debug"
 ```
 
-This creates:
+This:
 
-* dedicated automation Chrome profile
-* persistent login session
+* opens Chrome with the **remote debugging port** on `9222` (the port the script connects to)
+* uses a **dedicated user-data directory** so the automation has its own persistent profile and login session
 
----
+> On macOS/Linux the equivalent is to launch Chrome/Chromium with the same `--remote-debugging-port=9222` and a `--user-data-dir` of your choosing.
 
-## Step 3 — Login OpenAI
+### Step 3 — Log in to OpenAI once
 
-Inside opened Chrome:
-
-* login to OpenAI once
-
-Future runs will reuse session automatically.
+In the Chrome window that just opened, log in to the OpenAI Platform once. Because the profile is persistent, future runs reuse the session automatically.
 
 ---
 
-# learners.csv Format
+## learners.csv Format
 
-Create:
-
-```text
-learners.csv
-```
-
-Structure:
+Create a file named `learners.csv` in the project root:
 
 ```csv
 name
@@ -159,58 +156,109 @@ Arjun
 Sneha
 ```
 
-Important:
+Rules:
 
-* first row must be `name`
-* no empty rows
+* the header (first row) **must** be `name`
+* one learner per row, no empty rows
 * UTF-8 encoding preferred
+
+The script reads each row's `name` value, trims it, and uses it as the API key's name.
 
 ---
 
-# Running The Automation
+## Configuration
 
-## Step 1 — Start Chrome Debug Session
+Open **`main.js`** and review these two settings before running.
+
+### 1. Target OpenAI project (URL)
+
+The project is selected by navigating directly to a **project-scoped** API keys URL. The `proj_...` segment in the URL determines which project the keys are created under:
+
+```javascript
+await page.goto(
+  'https://platform.openai.com/settings/proj_5AD0AEuOMz8wBPyxZRlmPqwu/api-keys'
+);
+```
+
+Replace `proj_5AD0AEuOMz8wBPyxZRlmPqwu` with your own project ID. You can find it in the OpenAI dashboard URL when viewing your project's settings.
+
+> An older approach selected the project via an in-modal dropdown. That logic is still present in `main.js` but **commented out**, because selecting the project through the URL is simpler and more reliable.
+
+### 2. Output file
+
+Keys are appended to `generated_keys.csv`:
+
+```javascript
+const csvWriter = createObjectCsvWriter({
+  path: 'generated_keys.csv',
+  header: [
+    { id: 'name',   title: 'NAME' },
+    { id: 'apiKey', title: 'API_KEY' }
+  ],
+  append: true
+});
+```
+
+Because `append: true` is set, re-running the script adds to the existing file rather than overwriting it.
+
+---
+
+## Running the Automation
+
+### Step 1 — Start the Chrome debug session
 
 ```bash
 "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\chrome-debug"
 ```
 
----
+Make sure you are logged in to OpenAI in this window.
 
-## Step 2 — Run Script
+### Step 2 — Run the script
 
 ```bash
-node test.js
+node main.js
 ```
 
----
-
-# Automation Flow
-
-For each learner:
-
-1. Opens OpenAI API keys page
-2. Opens “Create new secret key” modal
-3. Fills learner name
-4. Selects target project
-5. Creates API key
-6. Copies generated API key
-7. Reads clipboard value
-8. Saves learner + API key into CSV
-9. Clicks Done
-10. Moves to next learner
-
----
-
-# Output File
-
-Generated keys are stored in:
+The console will log progress for each learner, for example:
 
 ```text
-generated_keys.csv
+Found 4 learners
+
+Processing: Rahul
+Modal Opened
+Learner Name Filled
+Secret Key Created
+API Key Copied
+Copied API Key: sk-proj-xxxxx
+Saved To CSV
+Popup Closed
+...
+ALL LEARNERS COMPLETED
 ```
 
-Example:
+---
+
+## Automation Flow
+
+The script connects to Chrome **once**, opens the project's API keys page **once**, then loops over every learner. For each learner it:
+
+1. Clicks **Create new secret key** to open the modal
+2. Fills the learner's name into the key-name field (`input[placeholder="My Test Key"]`)
+3. *(Project is already determined by the page URL; the dropdown step is commented out)*
+4. Clicks **Create secret key**
+5. Clicks **Copy** to copy the generated key
+6. Reads the key from the system clipboard via `clipboardy.read()`
+7. Appends `{ name, apiKey }` to `generated_keys.csv`
+8. Clicks **Done** to close the modal
+9. Moves on to the next learner
+
+If any step throws, the error is logged to the console, the script presses **Escape** to dismiss the modal, and the loop continues with the next learner.
+
+---
+
+## Output File
+
+Generated keys are stored in `generated_keys.csv`:
 
 ```csv
 NAME,API_KEY
@@ -218,125 +266,84 @@ Rahul,sk-proj-xxxxx
 Priya,sk-proj-yyyyy
 ```
 
----
-
-# Important Configuration
-
-Inside `test.js`, update:
-
-## OpenAI Project Name
-
-```javascript
-hasText: /TPM Early March Cohort/
-```
-
-Replace with your actual OpenAI project name.
+This file is git-ignored so keys are never committed.
 
 ---
 
-## OpenAI URL
+## Recommended Operational Structure
 
-```javascript
-https://platform.openai.com/settings/organization/api-keys
-```
-
-Can be changed if needed.
-
----
-
-# Security Notes
-
-API keys are sensitive credentials.
-
-Never:
-
-* upload generated CSV publicly
-* commit keys to GitHub
-* share keys in unsecured channels
-
-Recommended:
-
-* encrypted storage
-* secure learner delivery
-* one-time visibility
-
----
-
-# Recommended Operational Structure
-
-Best practice:
-
-| Entity         | Structure            |
+| Entity         | Suggested structure  |
 | -------------- | -------------------- |
 | OpenAI Project | One per batch/cohort |
 | API Key        | One per learner      |
 
 Advantages:
 
-* easier billing
-* easier revocation
+* easier billing per cohort
+* easier revocation of individual learners' keys
 * centralized usage tracking
-* better limit management
+* better rate/spend limit management
 
 ---
 
-# Common Issues
+## Security Notes
+
+API keys are sensitive credentials. **Never:**
+
+* upload `generated_keys.csv` to a public location
+* commit keys to GitHub (the included `.gitignore` already excludes the output CSV)
+* share keys over unsecured channels
+
+Recommended practices:
+
+* store keys in encrypted storage
+* deliver keys to learners securely
+* prefer one-time visibility where possible
+* rotate/revoke keys when a cohort ends
 
 ---
 
-## ECONNREFUSED 127.0.0.1:9222
+## Troubleshooting
 
-Cause:
+### `ECONNREFUSED 127.0.0.1:9222`
 
-* Chrome debug session not running
+**Cause:** Chrome is not running in debug mode on port 9222.
+**Fix:** Start Chrome with the `--remote-debugging-port=9222` command **before** running the script.
 
-Fix:
+### A button click does nothing / selector errors
 
-* start Chrome using debug command before running script
+**Cause:** OpenAI updated its UI, so the button text or input placeholder no longer matches.
+**Fix:** Inspect the relevant element in Chrome DevTools and update the Playwright selectors in `main.js` (e.g. the button names or the `My Test Key` placeholder).
 
----
+### `clipboardy.read is not a function`
 
-## Button Click Not Working
-
-Cause:
-
-* OpenAI UI updated
-* selector mismatch
-
-Fix:
-
-* inspect button text again
-* update Playwright selectors
-
----
-
-## clipboardy.read is not a function
-
-Fix:
+**Cause:** `clipboardy` v5 is ESM-only and the default export was not used.
+**Fix:** Import it as:
 
 ```javascript
 const clipboardy = require('clipboardy').default;
 ```
 
+### The clipboard read returns the wrong value
+
+**Cause:** Something else wrote to the clipboard between the **Copy** click and the read, or the copy didn't complete in time.
+**Fix:** Keep the machine idle during the run; the script already waits briefly after clicking **Copy**.
+
 ---
 
-# Future Improvements
+## Future Improvements
 
 Potential upgrades:
 
-* Google Sheets integration
-* Learner dashboard
-* Automatic onboarding portal
-* n8n integration
-* Supabase database
+* Google Sheets integration for input/output
+* Learner dashboard and onboarding portal
+* n8n workflow integration
+* Supabase database for persistence and auth
 * Admin panel
-* Usage tracking
-* Automatic revocation
-* Quiz-based API provisioning
+* Usage tracking and automatic revocation
+* Quiz-based / on-demand API provisioning
 
----
-
-# Suggested Production Architecture
+### Suggested production architecture
 
 ```text
 Frontend Portal
@@ -352,9 +359,7 @@ Generated API Key
 Database / Google Sheets
 ```
 
----
-
-# Recommended Stack For Scaling
+### Recommended stack for scaling
 
 | Layer      | Tool              |
 | ---------- | ----------------- |
@@ -367,20 +372,12 @@ Database / Google Sheets
 
 ---
 
-# Disclaimer
+## Disclaimer
 
-This project automates browser interactions with the OpenAI platform UI.
-
-UI selectors may change over time if OpenAI updates their interface.
-
-Periodic maintenance may be required.
+This project automates browser interactions with the OpenAI Platform **UI**. UI selectors and page URLs may change over time if OpenAI updates their interface, so periodic maintenance may be required. Use it in accordance with OpenAI's terms of service.
 
 ---
 
-# Author Notes
+## Author Notes
 
-This system was initially built as:
-
-* a lightweight internal provisioning tool
-* for learner onboarding automation
-* during AI cohort management workflows.
+This system was initially built as a lightweight internal provisioning tool for learner onboarding automation during AI cohort management workflows.
